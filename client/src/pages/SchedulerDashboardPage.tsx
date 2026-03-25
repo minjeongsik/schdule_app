@@ -47,6 +47,17 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatDuration(minutesTotalSeconds: number) {
+  const hours = Math.floor(minutesTotalSeconds / 3600);
+  const minutes = Math.round((minutesTotalSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+}
+
 function emptyPlaceForm() {
   return {
     name: "",
@@ -288,6 +299,7 @@ export function SchedulerDashboardPage() {
   const pageError =
     (appointmentsQuery.error ? toApiError(appointmentsQuery.error).pageError : null) ||
     (placesQuery.error ? toApiError(placesQuery.error).pageError : null);
+  const selectedRoute = selectedAppointment?.routes.find((route) => route.selectedOption) ?? null;
 
   return (
     <main className="scheduler-shell">
@@ -506,6 +518,35 @@ export function SchedulerDashboardPage() {
           </form>
 
           {formMessage ? <p className="success-text">{formMessage}</p> : null}
+          {selectedAppointment ? (
+            <section className="route-section">
+              <div className="route-section-header">
+                <strong>Route candidates</strong>
+                <span className="soft-badge">{selectedAppointment.routes.length} routes</span>
+              </div>
+              {selectedAppointment.routes.length ? (
+                <div className="route-list">
+                  {selectedAppointment.routes.map((route) => (
+                    <article key={route.id} className={`route-card ${route.selectedOption ? "active" : ""}`}>
+                      <div className="route-card-top">
+                        <strong>{route.summary ?? "Unnamed route candidate"}</strong>
+                        {route.selectedOption ? <span className="status-pill status-completed">Selected</span> : null}
+                      </div>
+                      <p className="meta-line">
+                        {Math.round(route.distanceMeters / 100) / 10} km · {formatDuration(route.durationSeconds)}
+                      </p>
+                      <p className="meta-line">{route.waypoints.length} waypoint(s)</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state compact-empty-state">
+                  <strong>No route candidates yet.</strong>
+                  <p>Add route generation later without changing this appointment model.</p>
+                </div>
+              )}
+            </section>
+          ) : null}
         </article>
 
         <article className="panel panel-scroll">
@@ -535,6 +576,10 @@ export function SchedulerDashboardPage() {
                   {appointment.originPlace?.name ?? "No origin"} to {appointment.destinationPlace.name}
                 </p>
                 <p className="meta-line">{appointment.transportMode}</p>
+                <p className="meta-line">
+                  {appointment.routes.length} routes
+                  {appointment.routes.some((route) => route.selectedOption) ? " · selected candidate ready" : ""}
+                </p>
               </button>
             ))}
 
@@ -656,6 +701,39 @@ export function SchedulerDashboardPage() {
           </div>
         </article>
       </section>
+
+      {selectedAppointment && selectedRoute ? (
+        <section className="selected-route-panel">
+          <div className="panel-heading">
+            <div className="panel-heading-copy">
+              <p className="panel-kicker">Selected Route</p>
+              <h2>{selectedRoute.summary ?? "Selected route candidate"}</h2>
+              <p className="panel-description">
+                {Math.round(selectedRoute.distanceMeters / 100) / 10} km · {formatDuration(selectedRoute.durationSeconds)}
+              </p>
+            </div>
+          </div>
+          <div className="route-list">
+            {selectedRoute.waypoints.length ? (
+              selectedRoute.waypoints.map((waypoint) => (
+                <article key={waypoint.id} className="route-card">
+                  <strong>
+                    {waypoint.sequence}. {waypoint.name ?? "Waypoint"}
+                  </strong>
+                  <p className="meta-line">
+                    {waypoint.lat.toFixed(4)}, {waypoint.lng.toFixed(4)}
+                  </p>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state compact-empty-state">
+                <strong>No waypoints stored.</strong>
+                <p>This candidate is still valid without intermediate stops.</p>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

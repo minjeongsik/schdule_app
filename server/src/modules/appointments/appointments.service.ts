@@ -1,12 +1,23 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../utils/http-error.js";
 import { logger } from "../../utils/logger.js";
 import { createAppointmentSchema, listAppointmentsQuerySchema, updateAppointmentSchema } from "./appointments.schema.js";
 
-const appointmentInclude = {
+const appointmentInclude = Prisma.validator<Prisma.AppointmentInclude>()({
   originPlace: true,
-  destinationPlace: true
-} as const;
+  destinationPlace: true,
+  routes: {
+    include: {
+      waypoints: {
+        orderBy: {
+          sequence: "asc"
+        }
+      }
+    },
+    orderBy: [{ selectedOption: "desc" }, { createdAt: "asc" }]
+  }
+});
 
 async function ensureUserExists(userId: string) {
   const user = await prisma.user.findUnique({

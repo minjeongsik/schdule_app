@@ -25,7 +25,7 @@ export interface RouteCandidate {
   selectedOption: boolean;
   createdAt: string;
   updatedAt: string;
-  waypoints?: Waypoint[];
+  waypoints: Waypoint[];
 }
 
 export interface Place {
@@ -55,7 +55,7 @@ export interface Appointment {
   updatedAt: string;
   originPlace: Place | null;
   destinationPlace: Place;
-  routes?: RouteCandidate[];
+  routes: RouteCandidate[];
 }
 
 export interface AppointmentPayload {

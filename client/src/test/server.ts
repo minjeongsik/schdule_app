@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import type { Appointment, Place } from "../types/scheduler";
+import type { Appointment, Place, RouteCandidate } from "../types/scheduler";
 
 const defaultPlaces = (): Place[] => [
   {
@@ -29,6 +29,59 @@ const defaultPlaces = (): Place[] => [
 
 const places: Place[] = defaultPlaces();
 
+const defaultRoutes = (): RouteCandidate[] => [
+  {
+    id: "demo-route-fastest",
+    appointmentId: "demo-appointment",
+    originPlaceId: "home-place",
+    destinationPlaceId: "office-place",
+    summary: "Fastest transit candidate",
+    distanceMeters: 12000,
+    durationSeconds: 2400,
+    routePolylineJson: null,
+    selectedOption: true,
+    createdAt: "2026-03-24T00:00:00.000Z",
+    updatedAt: "2026-03-24T00:00:00.000Z",
+    waypoints: [
+      {
+        id: "waypoint-1",
+        routeId: "demo-route-fastest",
+        sequence: 1,
+        name: "Transfer stop",
+        lat: 37.5142,
+        lng: 127.0418,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z"
+      }
+    ]
+  },
+  {
+    id: "demo-route-walk",
+    appointmentId: "demo-appointment",
+    originPlaceId: "home-place",
+    destinationPlaceId: "office-place",
+    summary: "Walking-heavy candidate",
+    distanceMeters: 9800,
+    durationSeconds: 4200,
+    routePolylineJson: null,
+    selectedOption: false,
+    createdAt: "2026-03-24T00:00:00.000Z",
+    updatedAt: "2026-03-24T00:00:00.000Z",
+    waypoints: [
+      {
+        id: "waypoint-2",
+        routeId: "demo-route-walk",
+        sequence: 1,
+        name: "Coffee stop",
+        lat: 37.529,
+        lng: 127.012,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z"
+      }
+    ]
+  }
+];
+
 const initialAppointments = (): Appointment[] => [
   {
     id: "demo-appointment",
@@ -44,7 +97,8 @@ const initialAppointments = (): Appointment[] => [
     createdAt: "2026-03-24T00:00:00.000Z",
     updatedAt: "2026-03-24T00:00:00.000Z",
     originPlace: places[0],
-    destinationPlace: places[1]
+    destinationPlace: places[1],
+    routes: defaultRoutes()
   }
 ];
 
@@ -70,7 +124,8 @@ export const handlers = [
       createdAt: "2026-03-24T00:00:00.000Z",
       updatedAt: "2026-03-24T00:00:00.000Z",
       originPlace,
-      destinationPlace
+      destinationPlace,
+      routes: []
     };
 
     appointments.unshift(nextAppointment);
