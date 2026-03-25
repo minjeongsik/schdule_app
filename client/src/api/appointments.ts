@@ -1,0 +1,26 @@
+import { apiRequest } from "./client";
+import type { Appointment, AppointmentPayload, AppointmentUpdatePayload } from "../types/scheduler";
+
+export function fetchAppointments(userId: string) {
+  return apiRequest<Appointment[]>(`/appointments?userId=${encodeURIComponent(userId)}`);
+}
+
+export function createAppointment(payload: AppointmentPayload) {
+  return apiRequest<Appointment>("/appointments", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateAppointment(id: string, payload: AppointmentUpdatePayload) {
+  return apiRequest<Appointment>(`/appointments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteAppointment(id: string) {
+  return apiRequest<void>(`/appointments/${id}`, {
+    method: "DELETE"
+  });
+}

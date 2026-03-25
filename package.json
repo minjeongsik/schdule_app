@@ -1,0 +1,23 @@
+{
+  "name": "fullstack-test-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:client": "npm --workspace client run dev",
+    "dev:server": "npm --workspace server run dev",
+    "build": "npm --workspace server run build && npm --workspace client run build",
+    "db:studio": "npm --workspace server run db:studio",
+    "test": "npm --workspace server run test && npm --workspace client run test",
+    "test:e2e": "playwright test",
+    "lint": "npm --workspace server run lint && npm --workspace client run lint"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "concurrently": "^9.2.1"
+  }
+}
