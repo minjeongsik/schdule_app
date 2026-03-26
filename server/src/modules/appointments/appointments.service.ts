@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { HttpError } from "../../utils/http-error.js";
 import { logger } from "../../utils/logger.js";
-import { createAppointmentSchema, listAppointmentsQuerySchema, updateAppointmentSchema } from "./appointments.schema.js";
+import {
+  createAppointmentSchema,
+  createRouteSchema,
+  listAppointmentsQuerySchema,
+  updateAppointmentSchema
+} from "./appointments.schema.js";
 
 const appointmentInclude = Prisma.validator<Prisma.AppointmentInclude>()({
   originPlace: true,
@@ -138,6 +143,129 @@ export class AppointmentsService {
     return prisma.appointment.update({
       where: { id },
       data: parsed.data,
+      include: appointmentInclude
+    });
+  }
+
+  async selectRoute(id: string, routeId: string) {
+    logger.debug({ id, routeId }, "appointments-service:selectRoute");
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+
+    if (!appointment) {
+      throw new HttpError(404, "Appointment not found");
+    }
+
+    const route = await prisma.savedRoute.findFirst({
+      where: {
+        id: routeId,
+        appointmentId: id
+      },
+      select: { id: true }
+    });
+
+    if (!route) {
+      throw new HttpError(404, "Route not found");
+    }
+
+    await prisma.$transaction([
+      prisma.savedRoute.updateMany({
+        where: {
+          appointmentId: id,
+          selectedOption: true
+        },
+        data: {
+          selectedOption: false
+        }
+      }),
+      prisma.savedRoute.update({
+        where: { id: routeId },
+        data: {
+          selectedOption: true
+        }
+      })
+    ]);
+
+    return prisma.appointment.findUniqueOrThrow({
+      where: { id },
+      include: appointmentInclude
+    });
+  }
+
+  async createRoute(id: string, input: unknown) {
+    const parsed = createRouteSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new HttpError(400, "Validation failed", parsed.error.flatten());
+    }
+
+    logger.debug({ id, input: parsed.data }, "appointments-service:createRoute");
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        originPlaceId: true,
+        destinationPlaceId: true,
+        routes: {
+          select: {
+            id: true,
+            selectedOption: true
+          }
+        }
+      }
+    });
+
+    if (!appointment) {
+      throw new HttpError(404, "Appointment not found");
+    }
+
+    if (!appointment.originPlaceId) {
+      throw new HttpError(400, "Appointment must have an origin place before adding routes");
+    }
+
+    const shouldSelect = parsed.data.selectedOption ?? appointment.routes.every((route) => !route.selectedOption);
+
+    await prisma.$transaction(async (tx) => {
+      if (shouldSelect) {
+        await tx.savedRoute.updateMany({
+          where: {
+            appointmentId: id,
+            selectedOption: true
+          },
+          data: {
+            selectedOption: false
+          }
+        });
+      }
+
+      await tx.savedRoute.create({
+        data: {
+          appointmentId: id,
+          originPlaceId: appointment.originPlaceId!,
+          destinationPlaceId: appointment.destinationPlaceId,
+          summary: parsed.data.summary,
+          distanceMeters: parsed.data.distanceMeters,
+          durationSeconds: parsed.data.durationSeconds,
+          selectedOption: shouldSelect,
+          waypoints: parsed.data.waypoints?.length
+            ? {
+                create: parsed.data.waypoints.map((waypoint, index) => ({
+                  sequence: index + 1,
+                  name: waypoint.name,
+                  lat: waypoint.lat,
+                  lng: waypoint.lng
+                }))
+              }
+            : undefined
+        }
+      });
+    });
+
+    return prisma.appointment.findUniqueOrThrow({
+      where: { id },
       include: appointmentInclude
     });
   }

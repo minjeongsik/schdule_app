@@ -273,6 +273,16 @@ button {
   font-weight: 700;
 }
 
+.route-select-button {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #9a3412;
+  background: #ffedd5;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .compact-button {
   padding: 7px 10px;
   font-size: 0.78rem;
@@ -446,6 +456,10 @@ button {
   border-top: 1px solid #e4ece8;
 }
 
+.route-form {
+  margin-bottom: 14px;
+}
+
 .route-section-header {
   display: flex;
   align-items: center;
@@ -456,6 +470,17 @@ button {
 
 .compact-empty-state {
   padding: 10px 12px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row input {
+  width: auto;
+  margin-top: 0;
 }
 
 .empty-state strong {

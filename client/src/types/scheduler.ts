@@ -28,6 +28,20 @@ export interface RouteCandidate {
   waypoints: Waypoint[];
 }
 
+export interface RouteWaypointPayload {
+  name?: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RouteCandidatePayload {
+  summary?: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  selectedOption?: boolean;
+  waypoints?: RouteWaypointPayload[];
+}
+
 export interface Place {
   id: string;
   userId: string;

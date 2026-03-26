@@ -3,10 +3,12 @@ import { toApiError } from "../api/client";
 import {
   useAppointments,
   useCreateAppointment,
+  useCreateAppointmentRoute,
   useCreatePlace,
   useDeletePlace,
   useDeleteAppointment,
   usePlaces,
+  useSelectAppointmentRoute,
   useUpdatePlace,
   useUpdateAppointment
 } from "../hooks/use-scheduler";
@@ -18,6 +20,7 @@ import type {
   FieldErrors,
   Place,
   PlacePayload,
+  RouteCandidatePayload,
   TransportMode
 } from "../types/scheduler";
 
@@ -68,6 +71,16 @@ function emptyPlaceForm() {
   };
 }
 
+function emptyRouteForm() {
+  return {
+    summary: "",
+    distanceMeters: "",
+    durationSeconds: "",
+    selectedOption: true,
+    waypointLines: ""
+  };
+}
+
 function emptyFieldErrors(): FieldErrors {
   return {};
 }
@@ -89,23 +102,51 @@ function buildInitialAppointmentForm(selected: Appointment | undefined) {
   };
 }
 
+function parseWaypointLines(value: string): RouteCandidatePayload["waypoints"] {
+  const lines = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return undefined;
+  }
+
+  return lines.map((line) => {
+    const [first, second, third] = line.split("|").map((item) => item.trim());
+    const hasName = third !== undefined;
+
+    return {
+      name: hasName ? first || undefined : undefined,
+      lat: Number(hasName ? second : first),
+      lng: Number(hasName ? third : second)
+    };
+  });
+}
+
 export function SchedulerDashboardPage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [appointmentForm, setAppointmentForm] = useState(buildInitialAppointmentForm(undefined));
   const [placeForm, setPlaceForm] = useState(emptyPlaceForm());
+  const [routeForm, setRouteForm] = useState(emptyRouteForm());
   const [appointmentFieldErrors, setAppointmentFieldErrors] = useState<FieldErrors>(emptyFieldErrors());
   const [placeFieldErrors, setPlaceFieldErrors] = useState<FieldErrors>(emptyFieldErrors());
+  const [routeFieldErrors, setRouteFieldErrors] = useState<FieldErrors>(emptyFieldErrors());
   const [appointmentFormError, setAppointmentFormError] = useState<string | null>(null);
   const [placeFormError, setPlaceFormError] = useState<string | null>(null);
+  const [routeFormError, setRouteFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [placeMessage, setPlaceMessage] = useState<string | null>(null);
+  const [routeMessage, setRouteMessage] = useState<string | null>(null);
 
   const appointmentsQuery = useAppointments(DEMO_USER_ID);
   const placesQuery = usePlaces(DEMO_USER_ID);
   const createAppointmentMutation = useCreateAppointment();
   const updateAppointmentMutation = useUpdateAppointment(DEMO_USER_ID);
   const deleteAppointmentMutation = useDeleteAppointment(DEMO_USER_ID);
+  const createAppointmentRouteMutation = useCreateAppointmentRoute(DEMO_USER_ID);
+  const selectAppointmentRouteMutation = useSelectAppointmentRoute(DEMO_USER_ID);
   const createPlaceMutation = useCreatePlace(DEMO_USER_ID);
   const updatePlaceMutation = useUpdatePlace(DEMO_USER_ID);
   const deletePlaceMutation = useDeletePlace(DEMO_USER_ID);
@@ -121,9 +162,13 @@ export function SchedulerDashboardPage() {
   function resetAppointmentForm() {
     setSelectedAppointmentId(null);
     setAppointmentForm(buildInitialAppointmentForm(undefined));
+    setRouteForm(emptyRouteForm());
     setAppointmentFieldErrors(emptyFieldErrors());
+    setRouteFieldErrors(emptyFieldErrors());
     setAppointmentFormError(null);
+    setRouteFormError(null);
     setFormMessage(null);
+    setRouteMessage(null);
   }
 
   function resetPlaceForm() {
@@ -137,9 +182,13 @@ export function SchedulerDashboardPage() {
   function handleSelectAppointment(appointment: Appointment) {
     setSelectedAppointmentId(appointment.id);
     setAppointmentForm(buildInitialAppointmentForm(appointment));
+    setRouteForm(emptyRouteForm());
     setAppointmentFieldErrors(emptyFieldErrors());
+    setRouteFieldErrors(emptyFieldErrors());
     setAppointmentFormError(null);
+    setRouteFormError(null);
     setFormMessage(null);
+    setRouteMessage(null);
   }
 
   function handleSelectPlace(place: Place) {
@@ -289,6 +338,8 @@ export function SchedulerDashboardPage() {
   }
 
   const isSubmitting = createAppointmentMutation.isPending || updateAppointmentMutation.isPending;
+  const isCreatingRoute = createAppointmentRouteMutation.isPending;
+  const isSelectingRoute = selectAppointmentRouteMutation.isPending;
   const isPlaceSubmitting =
     createPlaceMutation.isPending || updatePlaceMutation.isPending || deletePlaceMutation.isPending;
   const stats = {
@@ -300,6 +351,57 @@ export function SchedulerDashboardPage() {
     (appointmentsQuery.error ? toApiError(appointmentsQuery.error).pageError : null) ||
     (placesQuery.error ? toApiError(placesQuery.error).pageError : null);
   const selectedRoute = selectedAppointment?.routes.find((route) => route.selectedOption) ?? null;
+
+  async function handleSelectRoute(routeId: string) {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    setAppointmentFormError(null);
+    try {
+      await selectAppointmentRouteMutation.mutateAsync({
+        id: selectedAppointment.id,
+        routeId
+      });
+      setFormMessage("Selected route updated.");
+    } catch (error) {
+      const apiError = toApiError(error);
+      setAppointmentFormError(apiError.formError ?? apiError.pageError);
+    }
+  }
+
+  async function handleCreateRoute(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedAppointment) {
+      return;
+    }
+
+    setRouteFieldErrors(emptyFieldErrors());
+    setRouteFormError(null);
+    setRouteMessage(null);
+
+    const payload: RouteCandidatePayload = {
+      summary: routeForm.summary.trim() || undefined,
+      distanceMeters: Number(routeForm.distanceMeters),
+      durationSeconds: Number(routeForm.durationSeconds),
+      selectedOption: routeForm.selectedOption,
+      waypoints: parseWaypointLines(routeForm.waypointLines)
+    };
+
+    try {
+      await createAppointmentRouteMutation.mutateAsync({
+        id: selectedAppointment.id,
+        payload
+      });
+      setRouteForm(emptyRouteForm());
+      setRouteMessage("Route candidate created.");
+    } catch (error) {
+      const apiError = toApiError(error);
+      setRouteFieldErrors(apiError.fieldErrors);
+      setRouteFormError(apiError.formError ?? apiError.pageError);
+    }
+  }
 
   return (
     <main className="scheduler-shell">
@@ -524,13 +626,98 @@ export function SchedulerDashboardPage() {
                 <strong>Route candidates</strong>
                 <span className="soft-badge">{selectedAppointment.routes.length} routes</span>
               </div>
+              <form className="stack-form route-form" onSubmit={handleCreateRoute}>
+                {routeFormError ? <p className="form-error">{routeFormError}</p> : null}
+                <label>
+                  Route summary
+                  <input
+                    value={routeForm.summary}
+                    onChange={(event) => setRouteForm((current) => ({ ...current, summary: event.target.value }))}
+                    placeholder="Example: Fast subway option"
+                  />
+                  {getFieldError(routeFieldErrors, "summary") ? (
+                    <span className="field-error">{getFieldError(routeFieldErrors, "summary")}</span>
+                  ) : null}
+                </label>
+                <div className="two-column">
+                  <label>
+                    Distance meters
+                    <input
+                      type="number"
+                      min="1"
+                      value={routeForm.distanceMeters}
+                      onChange={(event) =>
+                        setRouteForm((current) => ({ ...current, distanceMeters: event.target.value }))
+                      }
+                      required
+                    />
+                    {getFieldError(routeFieldErrors, "distanceMeters") ? (
+                      <span className="field-error">{getFieldError(routeFieldErrors, "distanceMeters")}</span>
+                    ) : null}
+                  </label>
+                  <label>
+                    Duration seconds
+                    <input
+                      type="number"
+                      min="1"
+                      value={routeForm.durationSeconds}
+                      onChange={(event) =>
+                        setRouteForm((current) => ({ ...current, durationSeconds: event.target.value }))
+                      }
+                      required
+                    />
+                    {getFieldError(routeFieldErrors, "durationSeconds") ? (
+                      <span className="field-error">{getFieldError(routeFieldErrors, "durationSeconds")}</span>
+                    ) : null}
+                  </label>
+                </div>
+                <label>
+                  Waypoints
+                  <textarea
+                    rows={4}
+                    value={routeForm.waypointLines}
+                    onChange={(event) => setRouteForm((current) => ({ ...current, waypointLines: event.target.value }))}
+                    placeholder={"One per line: name|lat|lng or lat|lng"}
+                  />
+                  {getFieldError(routeFieldErrors, "waypoints") ? (
+                    <span className="field-error">{getFieldError(routeFieldErrors, "waypoints")}</span>
+                  ) : null}
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={routeForm.selectedOption}
+                    onChange={(event) =>
+                      setRouteForm((current) => ({ ...current, selectedOption: event.target.checked }))
+                    }
+                  />
+                  Select immediately
+                </label>
+                <div className="action-row">
+                  <button className="secondary-button" type="submit" disabled={isCreatingRoute}>
+                    Add route candidate
+                  </button>
+                </div>
+              </form>
+              {routeMessage ? <p className="success-text">{routeMessage}</p> : null}
               {selectedAppointment.routes.length ? (
                 <div className="route-list">
                   {selectedAppointment.routes.map((route) => (
                     <article key={route.id} className={`route-card ${route.selectedOption ? "active" : ""}`}>
                       <div className="route-card-top">
                         <strong>{route.summary ?? "Unnamed route candidate"}</strong>
-                        {route.selectedOption ? <span className="status-pill status-completed">Selected</span> : null}
+                        {route.selectedOption ? (
+                          <span className="status-pill status-completed">Selected</span>
+                        ) : (
+                          <button
+                            className="route-select-button"
+                            type="button"
+                            onClick={() => handleSelectRoute(route.id)}
+                            disabled={isSelectingRoute}
+                          >
+                            Select
+                          </button>
+                        )}
                       </div>
                       <p className="meta-line">
                         {Math.round(route.distanceMeters / 100) / 10} km · {formatDuration(route.durationSeconds)}
