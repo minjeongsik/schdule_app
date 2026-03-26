@@ -1,0 +1,38 @@
+Scheduler QA / 예외 처리 보강 계획
+작성 시각: 2026-03-26 10:21:41 Asia/Seoul
+
+1. 가장 위험한 실패 시나리오
+- 로컬 DB 또는 스키마 상태가 어긋나서 `/api/places`, `/api/appointments`가 500을 반환하는 경우
+- origin place가 없는 appointment에 route candidate를 생성하려고 하는 경우
+- 선택된 route candidate를 삭제했을 때 fallback selected 처리가 어긋나는 경우
+- route candidate 수정 시 waypoint 전체 교체 과정에서 순서나 데이터가 의도치 않게 사라지는 경우
+- place 삭제 충돌은 409로 막히지만 프론트에서 실패 이유가 충분히 명확하지 않은 경우
+
+2. 자동화 테스트로 먼저 막아야 할 항목
+- 서버: origin place 없는 appointment에 route 생성 시 400 반환
+- 서버: 다른 appointment 소속 route 선택/수정/삭제 시 404 반환
+- 서버: 선택된 route 삭제 시 남은 route 중 하나가 fallback selected 처리되는지 확인
+- 클라이언트: route 폼 실패 시 form error 표시
+- 클라이언트: validation 실패 시 해당 입력 옆 field error 표시
+- 클라이언트: 초기 로딩 실패 시 page error 배너 표시
+- 클라이언트: place 삭제 충돌 시 사용 가능한 form error 표시
+
+3. 프론트 field / form / page 에러 표시 보강점
+- submit 전에 waypoint 입력 포맷을 프론트에서 먼저 검증
+- route 폼의 성공/실패 메시지를 더 명확히 분리
+- page error 문구를 어떤 리소스가 실패했는지 알 수 있게 보강
+- delete/select 같은 액션 실패 메시지가 route 영역 근처에서 보이게 유지
+
+4. 문서 / QA 체크리스트에서 scheduler 기준으로 바꿔야 할 점
+- route candidate 생성/수정/삭제/선택 검증 항목 추가
+- `Internal server error` 발생 시 `/api/health`와 DB 경로를 먼저 확인한다는 운영 메모 추가
+- waypoint 입력 포맷 `name|lat|lng` / `lat|lng` 명시
+- `todo`는 현재 런타임에 연결되지 않은 레거시라는 점 명시
+- QA 기본 순서를 place -> appointment -> route candidate -> selected route 흐름으로 고정
+
+5. 가장 작은 변경 순서
+- 서버 테스트에 route 예외 경로 추가
+- 클라이언트 테스트에 field/form/page 에러 렌더링 추가
+- 프론트에 최소한의 validation / 메시지 보강 추가
+- scheduler 기준 문서와 QA 체크리스트 보강
+- 최종 검증: server lint/build, client lint/test/build

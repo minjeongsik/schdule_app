@@ -91,6 +91,10 @@ function getFieldError(fieldErrors: FieldErrors, field: string) {
   return fieldErrors[field]?.[0] ?? null;
 }
 
+function hasFieldErrors(fieldErrors: FieldErrors) {
+  return Object.keys(fieldErrors).length > 0;
+}
+
 function buildInitialAppointmentForm(selected: Appointment | undefined) {
   return {
     title: selected?.title ?? "",
@@ -124,6 +128,42 @@ function parseWaypointLines(value: string): RouteCandidatePayload["waypoints"] {
       lng: Number(hasName ? third : second)
     };
   });
+}
+
+function validateRouteForm(form: ReturnType<typeof emptyRouteForm>): FieldErrors {
+  const fieldErrors: FieldErrors = {};
+  const distanceMeters = Number(form.distanceMeters);
+  const durationSeconds = Number(form.durationSeconds);
+
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    fieldErrors.distanceMeters = ["distanceMeters must be greater than 0"];
+  }
+
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    fieldErrors.durationSeconds = ["durationSeconds must be greater than 0"];
+  }
+
+  const lines = form.waypointLines
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const parts = line.split("|").map((item) => item.trim());
+    if (parts.length !== 2 && parts.length !== 3) {
+      fieldErrors.waypoints = ["Use name|lat|lng or lat|lng for each waypoint."];
+      break;
+    }
+
+    const lat = Number(parts.length === 3 ? parts[1] : parts[0]);
+    const lng = Number(parts.length === 3 ? parts[2] : parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      fieldErrors.waypoints = ["Use name|lat|lng or lat|lng for each waypoint."];
+      break;
+    }
+  }
+
+  return fieldErrors;
 }
 
 function buildRouteForm(route?: Appointment["routes"][number] | null) {
@@ -365,9 +405,13 @@ export function SchedulerDashboardPage() {
     scheduled: appointments.filter((item) => item.status === "SCHEDULED").length,
     completed: appointments.filter((item) => item.status === "COMPLETED").length
   };
-  const pageError =
-    (appointmentsQuery.error ? toApiError(appointmentsQuery.error).pageError : null) ||
-    (placesQuery.error ? toApiError(placesQuery.error).pageError : null);
+  const appointmentsPageError = appointmentsQuery.error ? toApiError(appointmentsQuery.error).pageError : null;
+  const placesPageError = placesQuery.error ? toApiError(placesQuery.error).pageError : null;
+  const pageError = appointmentsPageError
+    ? `Appointments load failed: ${appointmentsPageError}`
+    : placesPageError
+      ? `Places load failed: ${placesPageError}`
+      : null;
   const selectedRoute = selectedAppointment?.routes.find((route) => route.selectedOption) ?? null;
 
   async function handleSelectRoute(routeId: string) {
@@ -375,16 +419,17 @@ export function SchedulerDashboardPage() {
       return;
     }
 
-    setAppointmentFormError(null);
+    setRouteFormError(null);
+    setRouteMessage(null);
     try {
       await selectAppointmentRouteMutation.mutateAsync({
         id: selectedAppointment.id,
         routeId
       });
-      setFormMessage("Selected route updated.");
+      setRouteMessage("Selected route updated.");
     } catch (error) {
       const apiError = toApiError(error);
-      setAppointmentFormError(apiError.formError ?? apiError.pageError);
+      setRouteFormError(apiError.formError ?? apiError.pageError);
     }
   }
 
@@ -398,6 +443,12 @@ export function SchedulerDashboardPage() {
     setRouteFieldErrors(emptyFieldErrors());
     setRouteFormError(null);
     setRouteMessage(null);
+
+    const nextFieldErrors = validateRouteForm(routeForm);
+    if (hasFieldErrors(nextFieldErrors)) {
+      setRouteFieldErrors(nextFieldErrors);
+      return;
+    }
 
     const payload: RouteCandidatePayload = {
       summary: routeForm.summary.trim() || undefined,
@@ -454,6 +505,7 @@ export function SchedulerDashboardPage() {
     }
 
     setRouteFormError(null);
+    setRouteMessage(null);
     try {
       await deleteAppointmentRouteMutation.mutateAsync({
         id: selectedAppointment.id,

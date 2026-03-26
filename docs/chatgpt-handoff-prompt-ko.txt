@@ -1,20 +1,20 @@
-당신은 지도 기반 일정 관리 MVP 프로젝트를 이어서 작업하는 역할입니다.
+당신은 지도 기반 scheduler MVP 프로젝트의 다음 작업을 이어받아 진행하는 역할입니다.
 
-아래 현재 상태를 먼저 읽고, 새로 갈아엎는 방향이 아니라 지금 코드베이스를 점진적으로 발전시키는 방향으로 답변하세요.
+먼저 이 요약을 읽고, 현재 상태를 기준으로 이어서 작업하세요. 새 구조를 처음부터 다시 제안하지 마세요.
 
 중요 원칙
 
-1. MVP 기준을 유지합니다.
+1. MVP 수준과 초급자 친화성을 유지합니다.
 2. 과설계하지 않습니다.
-3. 기존 구조를 가능한 한 유지합니다.
-4. 작은 변경과 작은 커밋 단위로 접근합니다.
+3. 강한 이유가 없으면 현재 구조를 유지합니다.
+4. 작은 변경과 작은 커밋 단위로 진행합니다.
 5. `todo` 코드는 별도 요청이 없는 한 레거시로 간주합니다.
 
 현재 기술 스택
 
 - 백엔드: Express + TypeScript + Prisma + SQLite
 - 프론트엔드: React + TypeScript + Vite
-- 데이터 패칭: React Query
+- 데이터 페칭: React Query
 - 검증: Zod
 
 현재 도메인 규칙
@@ -22,17 +22,26 @@
 - Place는 user scoped
 - Appointment는 여러 Route candidate를 가짐
 - Route candidate는 여러 Waypoint를 가짐
-- 프론트 에러는 `field / form / page`로 분리됨
+- 프론트 에러 처리는 `field / form / page`로 분리됨
 
 현재 구현 상태
 
 - Places CRUD 구현 완료
 - Appointments CRUD 구현 완료
 - Route candidate 생성 / 선택 / 수정 / 삭제 구현 완료
-- Waypoint 저장 지원
-- 선택된 route를 UI에서 확인 가능
-- route candidate 관리는 appointment 대시보드 안에서 처리
+- Waypoint는 route candidate별로 저장됨
+- 선택된 route는 UI에서 표시됨
+- route candidate 관리는 appointment 대시보드 안에서 처리됨
 - `todo` 런타임 라우트는 연결되어 있지 않음
+
+최근 QA / 예외 처리 보강 사항
+
+- route 관련 위험 흐름에 대한 서버 테스트 추가
+- `page / form / field` 에러 렌더링에 대한 클라이언트 테스트 추가
+- route 폼에서 양수 검증을 submit 전에 수행
+- waypoint 줄 입력 형식을 프론트에서 먼저 검증
+- route 선택 실패는 route 섹션 안에서 에러 표시
+- page error는 어떤 리소스 로딩이 실패했는지 드러나게 개선
 
 현재 백엔드 구조
 
@@ -62,6 +71,8 @@ server/
         places.routes.ts
         places.schema.ts
         places.service.ts
+    test/
+      appointments-routes.test.ts
     utils/
       http-error.ts
       logger.ts
@@ -111,16 +122,16 @@ PATCH  /api/places/:id
 DELETE /api/places/:id?userId=demo-user
 ```
 
-현재 Prisma 관련 핵심 사실
+현재 Prisma 관련 중요 사실
 
 - `Place.userId` 존재
 - route candidate 모델 이름은 아직 `SavedRoute`를 사용
-- `Waypoint` 모델 존재
+- `Waypoint` 모델이 존재하고 `SavedRoute`와 연결됨
 
 중요한 로컬 환경 주의사항
 
 - 올바른 SQLite 경로는 `file:./prisma/dev.db`
-- `server/.env`, `server/.env.example`는 반드시 아래 값이어야 함
+- `server/.env`, `server/.env.example`는 아래 값이어야 함
 
 ```env
 DATABASE_URL="file:./prisma/dev.db"
@@ -128,30 +139,44 @@ DATABASE_URL="file:./prisma/dev.db"
 
 - 과거에 `file:./dev.db`를 써서 잘못된 DB를 보는 버그가 있었음
 - env 수정 후 `Internal server error`가 보이면 서버 프로세스를 재시작해야 함
-- `GET /api/health`의 `databaseUrl`이 `/server/prisma/dev.db`로 끝나야 정상
+- `GET /api/health`에서 `databaseUrl`이 `/server/prisma/dev.db`로 끝나야 정상
+
+현재 QA / 문서 상태
+
+- `docs/qa-checklist.md`는 scheduler 흐름 기준으로 정리됨
+- `docs/user-guide.md`에는 waypoint 입력 형식이 정리되어 있음
+- `docs/debugging-guide.md`에는 `/api/health`와 DB 경로 확인 절차가 있음
+- `docs/plans/20260326_102141_scheduler-qa-plan.txt`에 현재 QA 보강 계획이 저장되어 있음
+
+현재 약한 지점
+
+- 아직 auth 계층이 없고 `userId`를 요청값으로 받음
+- waypoint 수정은 여전히 전체 교체 방식임
+- `todo` 파일은 저장소 안에 남아 있는 레거시 노이즈임
+- 과거 잘못된 경로에서 만들어진 `server/dev.db` 파일이 로컬에 남아 있을 수 있으나 사용하면 안 됨
 
 레거시 상태
 
-- `todo` 관련 파일은 아직 저장소에 남아 있음
-- 현재 런타임은 scheduler 모듈 기준으로 동작
-- `todo`는 참고용 레거시로 보고, 특별한 요청이 없으면 건드리지 않음
+- `todo` 파일은 저장소에 남아 있음
+- 현재 런타임은 scheduler 모듈 기준으로 동작함
+- 명시적인 요청이 없으면 `todo`를 제거하거나 되살리지 말 것
 
 현재 검증 상태
 
-- server lint/build 통과
+- server lint/build/test 통과
 - client lint/test/build 통과
 - 로컬 DB 경로 문제 수정 및 reseed 완료
 
 다음 어시스턴트가 지켜야 할 방향
 
 - 큰 구조 개편을 제안하지 말 것
-- 추상화만 위한 repository layer를 억지로 만들지 말 것
-- 명확한 필요가 생기기 전까지 프론트를 과도하게 분리하지 말 것
+- 추상화만을 위한 repository layer를 추가하지 말 것
+- 명확한 필요가 생기기 전까지 프론트를 과하게 분리하지 말 것
 - scheduler 동작, 검증, 테스트, UX를 점진적으로 개선할 것
 
-이 상태를 바탕으로 답변할 때는 아래 구조를 사용하세요.
+이 상태를 바탕으로 응답할 때는 아래 구조를 따르세요.
 
-1. 지금 잘된 점
-2. 아직 약하거나 위험한 점
-3. 다음에 할 가장 작은 유효 작업
-4. 아직 미루는 것이 좋은 작업
+1. 지금 이미 탄탄한 부분
+2. 아직 약하거나 위험한 부분
+3. 다음으로 가장 작은 유효 작업
+4. 나중으로 미뤄도 되는 작업

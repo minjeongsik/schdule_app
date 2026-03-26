@@ -34,6 +34,15 @@ Current implemented state
 - Route candidate management is inside the appointment dashboard UI
 - `todo` runtime routes are not connected
 
+Recent QA and exception-handling improvements
+
+- Server tests were added for risky route flows
+- Client tests now cover `page`, `form`, and `field` error rendering
+- Route form now validates positive numbers before submit
+- Route waypoint lines are validated in the frontend before submit
+- Route action failures are shown inside the route section
+- Page errors now indicate which resource failed to load
+
 Current backend structure
 
 ```text
@@ -62,6 +71,8 @@ server/
         places.routes.ts
         places.schema.ts
         places.service.ts
+    test/
+      appointments-routes.test.ts
     utils/
       http-error.ts
       logger.ts
@@ -130,15 +141,29 @@ DATABASE_URL="file:./prisma/dev.db"
 - If the app shows `Internal server error` after env changes, restart the server process
 - `GET /api/health` should show a database URL ending with `/server/prisma/dev.db`
 
+Current QA and docs status
+
+- `docs/qa-checklist.md` is aligned to scheduler flows
+- `docs/user-guide.md` explains route waypoint input format
+- `docs/debugging-guide.md` includes `/api/health` and DB-path checks
+- `docs/plans/20260326_102141_scheduler-qa-plan.txt` stores the current QA hardening plan
+
+Known weak points
+
+- There is still no auth layer; `userId` is still request-driven
+- Route waypoint editing is still full-replace, not granular
+- `todo` files still exist in the repo as legacy noise
+- The local bad file `server/dev.db` may exist from an old path mistake but should not be used
+
 Known legacy status
 
 - `todo` files still exist in the repo
-- `todo` docs and tests were legacy noise before cleanup
 - Current runtime uses scheduler modules, not todo routes
+- Do not remove or revive `todo` unless the task explicitly asks for it
 
 Current verification status
 
-- server lint/build passes
+- server lint/build/test passes
 - client lint/test/build passes
 - local DB path issue was fixed and reseeded
 
