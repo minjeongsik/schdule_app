@@ -1,179 +1,38 @@
-당신은 지도 기반 약속 스케줄러 프로젝트의 구조와 방향을 검토해주는 역할입니다.
+당신은 지도 기반 일정 관리 MVP 프로젝트를 이어서 작업하는 역할입니다.
 
-아래 프로젝트 설명을 읽고 다음을 해주세요.
+아래 현재 상태를 먼저 읽고, 새로 갈아엎는 방향이 아니라 지금 코드베이스를 점진적으로 발전시키는 방향으로 답변하세요.
 
-1. 현재 구조가 MVP 기준으로 적절한지 검토해주세요.
-2. 지금 상태에서 단순하고 좋은 부분은 무엇인지 말해주세요.
-3. 프로젝트가 커질 때 문제가 될 수 있는 부분을 말해주세요.
-4. 개선안을 제안하되, 과설계는 피해주세요.
-5. 초보자도 이해할 수 있는 구조라는 점을 꼭 고려해주세요.
-6. 이 코드를 갈아엎는 것이 아니라, 점진적으로 발전시키는 방향으로 조언해주세요.
-7. 특히 아래를 중심으로 봐주세요.
-   - Express + TypeScript + Prisma 백엔드 구조
-   - appointments / places / routes 모듈 경계
-   - 이후 네이버 지도 API 연동 대비 구조
-   - 모바일 우선 UI를 계속 관리 가능한 방식으로 유지하는 법
-   - 지금 다음 단계로 무엇을 해야 하는지
+중요 원칙
 
-프로젝트 목표
+1. MVP 기준을 유지합니다.
+2. 과설계하지 않습니다.
+3. 기존 구조를 가능한 한 유지합니다.
+4. 작은 변경과 작은 커밋 단위로 접근합니다.
+5. `todo` 코드는 별도 요청이 없는 한 레거시로 간주합니다.
 
-- 지도 기반 약속 스케줄러를 만드는 것이 목표입니다.
-- 백엔드는 Express + TypeScript + Prisma + SQLite를 사용합니다.
-- 프론트엔드는 React + TypeScript + Vite를 사용합니다.
-- MVP는 appointments CRUD부터 시작합니다.
-- places는 출발지/도착지로 재사용 가능한 장소 데이터입니다.
-- 이후에는 routes 기능과 네이버 지도 API 연동을 붙일 예정입니다.
-- 전체 코드베이스는 초보자도 이해 가능한 수준으로 유지하고 싶습니다.
+현재 기술 스택
 
-현재 전체 상태
+- 백엔드: Express + TypeScript + Prisma + SQLite
+- 프론트엔드: React + TypeScript + Vite
+- 데이터 패칭: React Query
+- 검증: Zod
 
-- 백엔드와 프론트엔드가 모두 존재합니다.
-- 배치 파일로 앱을 한 번에 실행할 수 있습니다.
-- 모바일 우선 대시보드 UI가 있습니다.
-- appointments CRUD가 구현되어 있습니다.
-- places 생성 / 조회 / 수정 / 삭제가 구현되어 있습니다.
-- Prisma Studio로 DB 관리가 가능합니다.
-- saved routes와 네이버 지도 API는 아직 구현되지 않았습니다.
+현재 도메인 규칙
 
-현재 Prisma schema
+- Place는 user scoped
+- Appointment는 여러 Route candidate를 가짐
+- Route candidate는 여러 Waypoint를 가짐
+- 프론트 에러는 `field / form / page`로 분리됨
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
+현재 구현 상태
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-enum TransportMode {
-  WALK
-  CAR
-  TRANSIT
-  BICYCLE
-}
-
-enum AppointmentStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELED
-}
-
-model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  appointments Appointment[]
-  tags         Tag[]
-}
-
-model Place {
-  id            String        @id @default(cuid())
-  name          String
-  roadAddress   String?
-  jibunAddress  String?
-  lat           Float
-  lng           Float
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  originAppointments      Appointment[] @relation("OriginPlace")
-  destinationAppointments Appointment[] @relation("DestinationPlace")
-
-  originRoutes      SavedRoute[] @relation("RouteOriginPlace")
-  destinationRoutes SavedRoute[] @relation("RouteDestinationPlace")
-
-  @@index([lat, lng])
-  @@index([name])
-}
-
-model Appointment {
-  id                 String             @id @default(cuid())
-  userId             String
-  title              String
-  memo               String?
-  startAt            DateTime
-  endAt              DateTime?
-  transportMode      TransportMode
-  status             AppointmentStatus  @default(SCHEDULED)
-  originPlaceId      String?
-  destinationPlaceId String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  originPlace      Place?           @relation("OriginPlace", fields: [originPlaceId], references: [id], onDelete: SetNull)
-  destinationPlace Place            @relation("DestinationPlace", fields: [destinationPlaceId], references: [id], onDelete: Restrict)
-
-  routes          SavedRoute[]
-  appointmentTags AppointmentTag[]
-
-  @@index([userId, startAt])
-  @@index([destinationPlaceId])
-  @@index([originPlaceId])
-  @@index([status])
-}
-
-model SavedRoute {
-  id                 String   @id @default(cuid())
-  appointmentId      String
-  originPlaceId      String
-  destinationPlaceId String
-  summary            String?
-  distanceMeters     Int
-  durationSeconds    Int
-  routePolylineJson  String?
-  selectedOption     Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  appointment      Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  originPlace      Place       @relation("RouteOriginPlace", fields: [originPlaceId], references: [id], onDelete: Restrict)
-  destinationPlace Place       @relation("RouteDestinationPlace", fields: [destinationPlaceId], references: [id], onDelete: Restrict)
-
-  @@index([appointmentId])
-  @@index([originPlaceId])
-  @@index([destinationPlaceId])
-  @@index([selectedOption])
-}
-
-model Tag {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  color     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  appointmentTags AppointmentTag[]
-
-  @@unique([userId, name])
-}
-
-model AppointmentTag {
-  appointmentId String
-  tagId         String
-
-  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([appointmentId, tagId])
-  @@index([tagId])
-}
-```
-
-schema 관련 참고사항
-
-- schema는 처음 초안과 최대한 가깝게 유지하고 있습니다.
-- `SavedRoute.transportMode`는 아직 추가하지 않았습니다.
-- 하지만 나중에 필요해질 가능성이 높다고 보고 있습니다.
-- 이걸 지금 추가하는 게 좋은지, 나중에 추가하는 게 좋은지도 의견이 필요합니다.
+- Places CRUD 구현 완료
+- Appointments CRUD 구현 완료
+- Route candidate 생성 / 선택 / 수정 / 삭제 구현 완료
+- Waypoint 저장 지원
+- 선택된 route를 UI에서 확인 가능
+- route candidate 관리는 appointment 대시보드 안에서 처리
+- `todo` 런타임 라우트는 연결되어 있지 않음
 
 현재 백엔드 구조
 
@@ -208,34 +67,7 @@ server/
       logger.ts
 ```
 
-백엔드 설계 의도
-
-- controller -> service 구조로 단순하게 유지하고 있습니다.
-- Prisma를 쓰기 때문에 repository 계층은 일부러 두지 않았습니다.
-- 초보자 입장에서 파일 수가 너무 많아지는 것을 피하고 싶었습니다.
-- 입력 검증은 Zod를 사용합니다.
-- 에러는 HttpError와 공통 error middleware로 통일합니다.
-
-현재 백엔드 API
-
-- GET /api/appointments?userId=...
-- GET /api/appointments/:id
-- POST /api/appointments
-- PATCH /api/appointments/:id
-- DELETE /api/appointments/:id
-- GET /api/places
-- POST /api/places
-- PATCH /api/places/:id
-- DELETE /api/places/:id
-
-백엔드 동작 관련 참고사항
-
-- 아직 인증이 없어서 `userId`를 직접 전달하고 있습니다.
-- appointment는 `destinationPlaceId`가 필수입니다.
-- place 삭제는, 현재 appointment의 도착지로 쓰이는 경우나 saved route에서 참조 중인 경우 막고 있습니다.
-- 이 역시 MVP 기준에서 단순하게 유지한 것입니다.
-
-현재 프론트엔드 구조
+현재 프론트 구조
 
 ```text
 client/
@@ -259,79 +91,67 @@ client/
     styles.css
 ```
 
-프론트엔드 설계 의도
+현재 주요 API
 
-- 파일 수를 너무 많이 늘리지 않고 한 페이지 중심으로 유지하고 있습니다.
-- React Query로 조회와 캐시 무효화를 처리합니다.
-- 스타일은 아직 CSS 한 파일에 모아두고 있습니다.
-- UI는 모바일 우선으로 조정했습니다.
-- 현재 화면에는 다음이 있습니다.
-  - appointment 입력/수정 폼
-  - appointment 목록
-  - place 관리 패널
-- 모바일에서는 액션 버튼이 하단에서 쉽게 눌리도록 배치했습니다.
-- place는 카드 선택 -> 편집 -> 삭제 흐름으로 동작합니다.
+```http
+GET    /api/appointments?userId=demo-user
+GET    /api/appointments/:id
+POST   /api/appointments
+PATCH  /api/appointments/:id
+DELETE /api/appointments/:id
 
-현재 배치 파일
+POST   /api/appointments/:id/routes
+PATCH  /api/appointments/:id/routes/:routeId
+PATCH  /api/appointments/:id/routes/:routeId/select
+DELETE /api/appointments/:id/routes/:routeId
 
-```text
-run-app.bat
-verify-all.bat
+GET    /api/places?userId=demo-user
+POST   /api/places
+PATCH  /api/places/:id
+DELETE /api/places/:id?userId=demo-user
 ```
 
-배치 파일 설명
+현재 Prisma 관련 핵심 사실
 
-- `run-app.bat`
-  - `.env`가 없으면 자동 생성
-  - 의존성이 없으면 설치
-  - Prisma client가 필요하면 생성
-  - DB가 없으면 push + seed
-  - dev 서버 실행
-  - 브라우저 자동 열기
+- `Place.userId` 존재
+- route candidate 모델 이름은 아직 `SavedRoute`를 사용
+- `Waypoint` 모델 존재
 
-- `verify-all.bat`
-  - server lint/build
-  - client lint/test/build
-  - 전체 검증을 한 번에 수행
+중요한 로컬 환경 주의사항
 
-현재 MVP 제약
+- 올바른 SQLite 경로는 `file:./prisma/dev.db`
+- `server/.env`, `server/.env.example`는 반드시 아래 값이어야 함
 
-- 과설계는 원하지 않습니다.
-- 초보자도 이해 가능한 구조여야 합니다.
-- 파일 수를 너무 빨리 늘리고 싶지 않습니다.
-- schema는 강한 이유가 없으면 지금 형태에 가깝게 유지하고 싶습니다.
-- 큰 리팩터링보다 점진적인 발전을 원합니다.
+```env
+DATABASE_URL="file:./prisma/dev.db"
+```
 
-현재 한계
+- 과거에 `file:./dev.db`를 써서 잘못된 DB를 보는 버그가 있었음
+- env 수정 후 `Internal server error`가 보이면 서버 프로세스를 재시작해야 함
+- `GET /api/health`의 `databaseUrl`이 `/server/prisma/dev.db`로 끝나야 정상
 
-- 인증이 없습니다.
-- `userId`가 하드코딩 또는 수동 전달 방식입니다.
-- 네이버 지도 API 연동이 아직 없습니다.
-- saved routes UI가 없습니다.
-- 실제 route 계산 기능이 없습니다.
-- frontend는 아직 한 페이지 중심입니다.
-- routes 모듈 폴더도 아직 없습니다.
+레거시 상태
 
-다음으로 하려는 단계
+- `todo` 관련 파일은 아직 저장소에 남아 있음
+- 현재 런타임은 scheduler 모듈 기준으로 동작
+- `todo`는 참고용 레거시로 보고, 특별한 요청이 없으면 건드리지 않음
 
-- 다음 단계는 최소한의 `routes` 지원을 붙이는 것입니다.
-- 예상 방향은 다음과 같습니다.
-  - backend에 routes 모듈 추가
-  - appointment별 route 후보 저장
-  - 선택된 route 하나 지정
-  - 실제 지도 API 연동 전까지는 단순한 구조로 유지
+현재 검증 상태
 
-당신에게 원하는 답변
+- server lint/build 통과
+- client lint/test/build 통과
+- 로컬 DB 경로 문제 수정 및 reseed 완료
 
-- 현재 방향이 맞는지 평가해주세요.
-- 다음 구현 단계 3개를 우선순위와 함께 제안해주세요.
-- `routes` 모듈을 지금 추가하는 것이 좋은지, 네이버 지도 API 연동 시점까지 미루는 것이 좋은지 말해주세요.
-- frontend를 아직 한 페이지로 유지하는 게 좋은지, 지금부터 UI를 분리하는 게 좋은지 말해주세요.
-- 앞으로 커질 때를 대비해서, 지금 최소한으로 해두면 좋은 변경을 말해주세요.
+다음 어시스턴트가 지켜야 할 방향
 
-답변은 아래 구조로 나눠주세요.
+- 큰 구조 개편을 제안하지 말 것
+- 추상화만 위한 repository layer를 억지로 만들지 말 것
+- 명확한 필요가 생기기 전까지 프론트를 과도하게 분리하지 말 것
+- scheduler 동작, 검증, 테스트, UX를 점진적으로 개선할 것
 
-1. 지금 좋은 점
-2. 나중에 위험할 수 있는 점
-3. 다음에 할 일
-4. 아직 하지 말아야 할 일
+이 상태를 바탕으로 답변할 때는 아래 구조를 사용하세요.
+
+1. 지금 잘된 점
+2. 아직 약하거나 위험한 점
+3. 다음에 할 가장 작은 유효 작업
+4. 아직 미루는 것이 좋은 작업

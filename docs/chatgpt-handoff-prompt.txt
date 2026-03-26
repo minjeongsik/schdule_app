@@ -1,178 +1,38 @@
-You are helping me review and improve the architecture of a map-based appointment scheduler project.
+You are helping continue development of a map-based scheduler MVP.
 
-Please read the project summary below and then do these things:
+Read this summary first, then continue from the current state instead of proposing a rewrite.
 
-1. Review whether the current structure is appropriate for an MVP.
-2. Point out parts that are simple and good as-is.
-3. Point out parts that may become problematic when the project grows.
-4. Suggest improvements, but avoid overengineering.
-5. Keep recommendations beginner-friendly.
-6. Assume I want to continue evolving this codebase incrementally, not rewrite it.
-7. Focus especially on:
-   - Express + TypeScript + Prisma backend structure
-   - module boundaries for appointments / places / routes
-   - how to prepare for future Naver Map API integration
-   - how to keep the mobile-first UI manageable
-   - what should be done next after the current state
+What matters most
 
-Project goal
+1. Keep the project MVP-level and beginner-friendly.
+2. Avoid overengineering.
+3. Preserve the current structure unless there is a strong reason to change it.
+4. Prefer incremental changes with small commits.
+5. Treat `todo` code as legacy unless a task explicitly asks to revive or delete it.
 
-- Build a map-based appointment scheduler.
-- Backend uses Express + TypeScript + Prisma + SQLite.
-- Frontend uses React + TypeScript + Vite.
-- MVP starts from appointments CRUD.
-- Places are reusable origin/destination records.
-- Later, route calculation and Naver Map API integration should be added.
-- The codebase should stay beginner-friendly and not too fragmented.
+Current stack
 
-Current high-level state
+- Backend: Express + TypeScript + Prisma + SQLite
+- Frontend: React + TypeScript + Vite
+- Data fetching: React Query
+- Validation: Zod
 
-- Backend and frontend both exist.
-- App can be launched with a batch file.
-- There is a mobile-first dashboard UI.
-- Appointments CRUD is implemented.
-- Places create / list / update / delete is implemented.
-- Prisma Studio can be used for DB management.
-- Saved routes and Naver Map API are not implemented yet.
+Current domain rules
 
-Current Prisma schema
+- Place is user-scoped
+- Appointment has many route candidates
+- Route candidate has many waypoints
+- Frontend error handling is split into `field / form / page`
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
+Current implemented state
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-enum TransportMode {
-  WALK
-  CAR
-  TRANSIT
-  BICYCLE
-}
-
-enum AppointmentStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELED
-}
-
-model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  passwordHash String
-  name         String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  appointments Appointment[]
-  tags         Tag[]
-}
-
-model Place {
-  id            String        @id @default(cuid())
-  name          String
-  roadAddress   String?
-  jibunAddress  String?
-  lat           Float
-  lng           Float
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  originAppointments      Appointment[] @relation("OriginPlace")
-  destinationAppointments Appointment[] @relation("DestinationPlace")
-
-  originRoutes      SavedRoute[] @relation("RouteOriginPlace")
-  destinationRoutes SavedRoute[] @relation("RouteDestinationPlace")
-
-  @@index([lat, lng])
-  @@index([name])
-}
-
-model Appointment {
-  id                 String             @id @default(cuid())
-  userId             String
-  title              String
-  memo               String?
-  startAt            DateTime
-  endAt              DateTime?
-  transportMode      TransportMode
-  status             AppointmentStatus  @default(SCHEDULED)
-  originPlaceId      String?
-  destinationPlaceId String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  originPlace      Place?           @relation("OriginPlace", fields: [originPlaceId], references: [id], onDelete: SetNull)
-  destinationPlace Place            @relation("DestinationPlace", fields: [destinationPlaceId], references: [id], onDelete: Restrict)
-
-  routes          SavedRoute[]
-  appointmentTags AppointmentTag[]
-
-  @@index([userId, startAt])
-  @@index([destinationPlaceId])
-  @@index([originPlaceId])
-  @@index([status])
-}
-
-model SavedRoute {
-  id                 String   @id @default(cuid())
-  appointmentId      String
-  originPlaceId      String
-  destinationPlaceId String
-  summary            String?
-  distanceMeters     Int
-  durationSeconds    Int
-  routePolylineJson  String?
-  selectedOption     Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  appointment      Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  originPlace      Place       @relation("RouteOriginPlace", fields: [originPlaceId], references: [id], onDelete: Restrict)
-  destinationPlace Place       @relation("RouteDestinationPlace", fields: [destinationPlaceId], references: [id], onDelete: Restrict)
-
-  @@index([appointmentId])
-  @@index([originPlaceId])
-  @@index([destinationPlaceId])
-  @@index([selectedOption])
-}
-
-model Tag {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  color     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  appointmentTags AppointmentTag[]
-
-  @@unique([userId, name])
-}
-
-model AppointmentTag {
-  appointmentId String
-  tagId         String
-
-  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([appointmentId, tagId])
-  @@index([tagId])
-}
-```
-
-Important note about the schema
-
-- The schema is intentionally close to the original draft.
-- `SavedRoute.transportMode` has not been added yet, even though that may become necessary later.
-- I want feedback on whether to change that now or later.
+- Places CRUD exists
+- Appointments CRUD exists
+- Route candidate create / select / update / delete exists
+- Waypoints are stored per route candidate
+- Selected route is shown in the UI
+- Route candidate management is inside the appointment dashboard UI
+- `todo` runtime routes are not connected
 
 Current backend structure
 
@@ -207,30 +67,6 @@ server/
       logger.ts
 ```
 
-Backend design notes
-
-- It uses a simple controller -> service pattern.
-- There is no repository layer because Prisma is used directly in services to keep things simple.
-- Validation uses Zod.
-- Errors are normalized with a shared HttpError + error middleware.
-- Current APIs:
-  - GET /api/appointments?userId=...
-  - GET /api/appointments/:id
-  - POST /api/appointments
-  - PATCH /api/appointments/:id
-  - DELETE /api/appointments/:id
-  - GET /api/places
-  - POST /api/places
-  - PATCH /api/places/:id
-  - DELETE /api/places/:id
-
-Backend behavior notes
-
-- `userId` is still passed directly because authentication is not implemented yet.
-- `destinationPlaceId` is required for appointments.
-- Place deletion is blocked if the place is used as a destination in appointments or is referenced by saved routes.
-- This is intentionally still MVP-oriented.
-
 Current frontend structure
 
 ```text
@@ -255,79 +91,67 @@ client/
     styles.css
 ```
 
-Frontend design notes
+Important current APIs
 
-- Frontend is intentionally compact and file count is still low.
-- A single main page currently drives the user flow.
-- React Query is used for fetching and invalidation.
-- Styling is in one CSS file for now.
-- UI is mobile-first.
-- The current screen includes:
-  - Appointment form
-  - Appointment list
-  - Place manager
-- On mobile, the form action area is sticky near the bottom.
-- Places can now be selected, edited, and deleted from the same panel.
+```http
+GET    /api/appointments?userId=demo-user
+GET    /api/appointments/:id
+POST   /api/appointments
+PATCH  /api/appointments/:id
+DELETE /api/appointments/:id
 
-Current batch files
+POST   /api/appointments/:id/routes
+PATCH  /api/appointments/:id/routes/:routeId
+PATCH  /api/appointments/:id/routes/:routeId/select
+DELETE /api/appointments/:id/routes/:routeId
 
-```text
-run-app.bat
-verify-all.bat
+GET    /api/places?userId=demo-user
+POST   /api/places
+PATCH  /api/places/:id
+DELETE /api/places/:id?userId=demo-user
 ```
 
-Batch file notes
+Important current Prisma facts
 
-- `run-app.bat`
-  - prepares `.env` if missing
-  - installs dependencies if needed
-  - generates Prisma client if needed
-  - pushes DB and seeds when DB is missing
-  - starts the dev servers
-  - opens the browser
+- `Place.userId` exists
+- `SavedRoute` is still the model name used for route candidates
+- `Waypoint` model exists and is related to `SavedRoute`
 
-- `verify-all.bat`
-  - runs server lint/build
-  - runs client lint/test/build
+Important local environment note
 
-Current MVP constraints
+- The correct SQLite path is `file:./prisma/dev.db`
+- `server/.env` and `server/.env.example` must use:
 
-- Do not overengineer.
-- Keep the code understandable for a beginner.
-- Avoid creating too many files too early.
-- Stay close to the current schema unless there is a strong reason to change it.
-- Prefer incremental evolution over large refactors.
+```env
+DATABASE_URL="file:./prisma/dev.db"
+```
 
-Current known limitations
+- A previous bug came from using the wrong path (`file:./dev.db`)
+- If the app shows `Internal server error` after env changes, restart the server process
+- `GET /api/health` should show a database URL ending with `/server/prisma/dev.db`
 
-- No authentication yet.
-- `userId` is still hardcoded or passed manually.
-- No Naver Map API integration yet.
-- No saved route UI yet.
-- No actual route calculation yet.
-- Frontend still uses one main dashboard page.
-- Route module folder does not exist yet.
+Known legacy status
 
-Planned next step
+- `todo` files still exist in the repo
+- `todo` docs and tests were legacy noise before cleanup
+- Current runtime uses scheduler modules, not todo routes
 
-- Add minimal `routes` support next.
-- Most likely:
-  - create backend module for routes
-  - save route candidates for an appointment
-  - select one route as chosen
-  - keep it simple before real map API integration
+Current verification status
 
-What I want from you
+- server lint/build passes
+- client lint/test/build passes
+- local DB path issue was fixed and reseeded
 
-- Evaluate whether the current direction is correct.
-- Tell me what the next 3 implementation steps should be.
-- Tell me whether I should add a `routes` module now or wait until Naver integration starts.
-- Tell me whether the frontend should stay as one page for now or start splitting into smaller UI components.
-- Tell me what minimal changes would best prepare this codebase for future growth without making it too complex now.
+Recommended mindset for the next assistant
 
-When you answer, separate your answer into:
+- Do not suggest a large architecture rewrite
+- Do not add a repository layer just for abstraction
+- Do not split the frontend into many files unless a clear pain point appears
+- Prefer improving scheduler behavior, validation, testing, and UX incrementally
 
-1. What is good as-is
-2. What is risky later
-3. What to do next
-4. What not to do yet
+If you continue from here, structure your response as:
+
+1. What is already solid
+2. What is still weak or risky
+3. The next smallest useful implementation step
+4. What should wait until later
