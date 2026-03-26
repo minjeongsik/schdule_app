@@ -64,7 +64,29 @@ export const createRouteSchema = z.object({
     .optional()
 });
 
+export const updateRouteSchema = z
+  .object({
+    summary: z.string().trim().max(200, "summary is too long").nullable().optional(),
+    distanceMeters: z.number().int().positive("distanceMeters must be greater than 0").optional(),
+    durationSeconds: z.number().int().positive("durationSeconds must be greater than 0").optional(),
+    selectedOption: z.boolean().optional(),
+    waypoints: z
+      .array(
+        z.object({
+          name: z.string().trim().max(100, "waypoint name is too long").optional(),
+          lat: z.number().min(-90, "lat is invalid").max(90, "lat is invalid"),
+          lng: z.number().min(-180, "lng is invalid").max(180, "lng is invalid")
+        })
+      )
+      .max(20, "Too many waypoints")
+      .optional()
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field must be provided"
+  });
+
 export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
 export type CreateRouteInput = z.infer<typeof createRouteSchema>;
+export type UpdateRouteInput = z.infer<typeof updateRouteSchema>;

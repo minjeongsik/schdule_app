@@ -32,6 +32,19 @@ export function createAppointmentRoute(id: string, payload: RouteCandidatePayloa
   });
 }
 
+export function updateAppointmentRoute(id: string, routeId: string, payload: RouteCandidatePayload) {
+  return apiRequest<Appointment>(`/appointments/${id}/routes/${routeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteAppointmentRoute(id: string, routeId: string) {
+  return apiRequest<Appointment>(`/appointments/${id}/routes/${routeId}`, {
+    method: "DELETE"
+  });
+}
+
 export function deleteAppointment(id: string) {
   return apiRequest<void>(`/appointments/${id}`, {
     method: "DELETE"

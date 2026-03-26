@@ -5,10 +5,12 @@ import {
   useCreateAppointment,
   useCreateAppointmentRoute,
   useCreatePlace,
+  useDeleteAppointmentRoute,
   useDeletePlace,
   useDeleteAppointment,
   usePlaces,
   useSelectAppointmentRoute,
+  useUpdateAppointmentRoute,
   useUpdatePlace,
   useUpdateAppointment
 } from "../hooks/use-scheduler";
@@ -124,9 +126,20 @@ function parseWaypointLines(value: string): RouteCandidatePayload["waypoints"] {
   });
 }
 
+function buildRouteForm(route?: Appointment["routes"][number] | null) {
+  return {
+    summary: route?.summary ?? "",
+    distanceMeters: route ? String(route.distanceMeters) : "",
+    durationSeconds: route ? String(route.durationSeconds) : "",
+    selectedOption: route?.selectedOption ?? true,
+    waypointLines: route?.waypoints.map((waypoint) => `${waypoint.name ? `${waypoint.name}|` : ""}${waypoint.lat}|${waypoint.lng}`).join("\n") ?? ""
+  };
+}
+
 export function SchedulerDashboardPage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
   const [appointmentForm, setAppointmentForm] = useState(buildInitialAppointmentForm(undefined));
   const [placeForm, setPlaceForm] = useState(emptyPlaceForm());
   const [routeForm, setRouteForm] = useState(emptyRouteForm());
@@ -146,6 +159,8 @@ export function SchedulerDashboardPage() {
   const updateAppointmentMutation = useUpdateAppointment(DEMO_USER_ID);
   const deleteAppointmentMutation = useDeleteAppointment(DEMO_USER_ID);
   const createAppointmentRouteMutation = useCreateAppointmentRoute(DEMO_USER_ID);
+  const updateAppointmentRouteMutation = useUpdateAppointmentRoute(DEMO_USER_ID);
+  const deleteAppointmentRouteMutation = useDeleteAppointmentRoute(DEMO_USER_ID);
   const selectAppointmentRouteMutation = useSelectAppointmentRoute(DEMO_USER_ID);
   const createPlaceMutation = useCreatePlace(DEMO_USER_ID);
   const updatePlaceMutation = useUpdatePlace(DEMO_USER_ID);
@@ -161,6 +176,7 @@ export function SchedulerDashboardPage() {
 
   function resetAppointmentForm() {
     setSelectedAppointmentId(null);
+    setEditingRouteId(null);
     setAppointmentForm(buildInitialAppointmentForm(undefined));
     setRouteForm(emptyRouteForm());
     setAppointmentFieldErrors(emptyFieldErrors());
@@ -181,6 +197,7 @@ export function SchedulerDashboardPage() {
 
   function handleSelectAppointment(appointment: Appointment) {
     setSelectedAppointmentId(appointment.id);
+    setEditingRouteId(null);
     setAppointmentForm(buildInitialAppointmentForm(appointment));
     setRouteForm(emptyRouteForm());
     setAppointmentFieldErrors(emptyFieldErrors());
@@ -338,8 +355,9 @@ export function SchedulerDashboardPage() {
   }
 
   const isSubmitting = createAppointmentMutation.isPending || updateAppointmentMutation.isPending;
-  const isCreatingRoute = createAppointmentRouteMutation.isPending;
+  const isCreatingRoute = createAppointmentRouteMutation.isPending || updateAppointmentRouteMutation.isPending;
   const isSelectingRoute = selectAppointmentRouteMutation.isPending;
+  const isDeletingRoute = deleteAppointmentRouteMutation.isPending;
   const isPlaceSubmitting =
     createPlaceMutation.isPending || updatePlaceMutation.isPending || deletePlaceMutation.isPending;
   const stats = {
@@ -390,15 +408,64 @@ export function SchedulerDashboardPage() {
     };
 
     try {
-      await createAppointmentRouteMutation.mutateAsync({
-        id: selectedAppointment.id,
-        payload
-      });
+      if (editingRouteId) {
+        await updateAppointmentRouteMutation.mutateAsync({
+          id: selectedAppointment.id,
+          routeId: editingRouteId,
+          payload
+        });
+        setRouteMessage("Route candidate updated.");
+      } else {
+        await createAppointmentRouteMutation.mutateAsync({
+          id: selectedAppointment.id,
+          payload
+        });
+        setRouteMessage("Route candidate created.");
+      }
+      setEditingRouteId(null);
       setRouteForm(emptyRouteForm());
-      setRouteMessage("Route candidate created.");
     } catch (error) {
       const apiError = toApiError(error);
       setRouteFieldErrors(apiError.fieldErrors);
+      setRouteFormError(apiError.formError ?? apiError.pageError);
+    }
+  }
+
+  function handleEditRoute(routeId: string) {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    const route = selectedAppointment.routes.find((item) => item.id === routeId);
+    if (!route) {
+      return;
+    }
+
+    setEditingRouteId(route.id);
+    setRouteFieldErrors(emptyFieldErrors());
+    setRouteFormError(null);
+    setRouteMessage(null);
+    setRouteForm(buildRouteForm(route));
+  }
+
+  async function handleDeleteRoute(routeId: string) {
+    if (!selectedAppointment) {
+      return;
+    }
+
+    setRouteFormError(null);
+    try {
+      await deleteAppointmentRouteMutation.mutateAsync({
+        id: selectedAppointment.id,
+        routeId
+      });
+      if (editingRouteId === routeId) {
+        setEditingRouteId(null);
+        setRouteForm(emptyRouteForm());
+      }
+      setRouteMessage("Route candidate deleted.");
+    } catch (error) {
+      const apiError = toApiError(error);
       setRouteFormError(apiError.formError ?? apiError.pageError);
     }
   }
@@ -628,6 +695,23 @@ export function SchedulerDashboardPage() {
               </div>
               <form className="stack-form route-form" onSubmit={handleCreateRoute}>
                 {routeFormError ? <p className="form-error">{routeFormError}</p> : null}
+                <div className="panel-actions">
+                  <span className="soft-badge">{editingRouteId ? "Edit mode" : "Create mode"}</span>
+                  {editingRouteId ? (
+                    <button
+                      className="secondary-button compact-button"
+                      type="button"
+                      onClick={() => {
+                        setEditingRouteId(null);
+                        setRouteForm(emptyRouteForm());
+                        setRouteFieldErrors(emptyFieldErrors());
+                        setRouteFormError(null);
+                      }}
+                    >
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
                 <label>
                   Route summary
                   <input
@@ -695,7 +779,7 @@ export function SchedulerDashboardPage() {
                 </label>
                 <div className="action-row">
                   <button className="secondary-button" type="submit" disabled={isCreatingRoute}>
-                    Add route candidate
+                    {editingRouteId ? "Update route candidate" : "Add route candidate"}
                   </button>
                 </div>
               </form>
@@ -706,18 +790,35 @@ export function SchedulerDashboardPage() {
                     <article key={route.id} className={`route-card ${route.selectedOption ? "active" : ""}`}>
                       <div className="route-card-top">
                         <strong>{route.summary ?? "Unnamed route candidate"}</strong>
-                        {route.selectedOption ? (
-                          <span className="status-pill status-completed">Selected</span>
-                        ) : (
+                        <div className="route-card-actions">
+                          {route.selectedOption ? (
+                            <span className="status-pill status-completed">Selected</span>
+                          ) : (
+                            <button
+                              className="route-select-button"
+                              type="button"
+                              onClick={() => handleSelectRoute(route.id)}
+                              disabled={isSelectingRoute}
+                            >
+                              Select
+                            </button>
+                          )}
                           <button
                             className="route-select-button"
                             type="button"
-                            onClick={() => handleSelectRoute(route.id)}
-                            disabled={isSelectingRoute}
+                            onClick={() => handleEditRoute(route.id)}
                           >
-                            Select
+                            Edit
                           </button>
-                        )}
+                          <button
+                            className="route-delete-button"
+                            type="button"
+                            onClick={() => handleDeleteRoute(route.id)}
+                            disabled={isDeletingRoute}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                       <p className="meta-line">
                         {Math.round(route.distanceMeters / 100) / 10} km · {formatDuration(route.durationSeconds)}

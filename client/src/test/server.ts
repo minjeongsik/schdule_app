@@ -222,6 +222,74 @@ export const handlers = [
 
     return HttpResponse.json(appointment);
   }),
+  http.patch("http://127.0.0.1:4000/api/appointments/:id/routes/:routeId", async ({ params, request }) => {
+    const body = (await request.json()) as {
+      summary?: string | null;
+      distanceMeters?: number;
+      durationSeconds?: number;
+      selectedOption?: boolean;
+      waypoints?: Array<{ name?: string; lat: number; lng: number }>;
+    };
+    const appointment = appointments.find((item) => item.id === params.id);
+    if (!appointment) {
+      return HttpResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+
+    const routeIndex = appointment.routes.findIndex((item) => item.id === params.routeId);
+    if (routeIndex < 0) {
+      return HttpResponse.json({ message: "Route not found" }, { status: 404 });
+    }
+
+    if (body.selectedOption) {
+      appointment.routes = appointment.routes.map((item) => ({
+        ...item,
+        selectedOption: item.id === params.routeId
+      }));
+    }
+
+    const currentRoute = appointment.routes.find((item) => item.id === params.routeId)!;
+    appointment.routes[routeIndex] = {
+      ...currentRoute,
+      summary: body.summary === undefined ? currentRoute.summary : body.summary,
+      distanceMeters: body.distanceMeters ?? currentRoute.distanceMeters,
+      durationSeconds: body.durationSeconds ?? currentRoute.durationSeconds,
+      selectedOption: body.selectedOption ?? currentRoute.selectedOption,
+      waypoints:
+        body.waypoints?.map((waypoint, index) => ({
+          id: `waypoint-${params.routeId}-${index + 1}`,
+          routeId: String(params.routeId),
+          sequence: index + 1,
+          name: waypoint.name ?? null,
+          lat: Number(waypoint.lat),
+          lng: Number(waypoint.lng),
+          createdAt: "2026-03-24T00:00:00.000Z",
+          updatedAt: "2026-03-24T00:00:00.000Z"
+        })) ?? currentRoute.waypoints
+    };
+
+    return HttpResponse.json(appointment);
+  }),
+  http.delete("http://127.0.0.1:4000/api/appointments/:id/routes/:routeId", ({ params }) => {
+    const appointment = appointments.find((item) => item.id === params.id);
+    if (!appointment) {
+      return HttpResponse.json({ message: "Appointment not found" }, { status: 404 });
+    }
+
+    const route = appointment.routes.find((item) => item.id === params.routeId);
+    if (!route) {
+      return HttpResponse.json({ message: "Route not found" }, { status: 404 });
+    }
+
+    appointment.routes = appointment.routes.filter((item) => item.id !== params.routeId);
+    if (route.selectedOption && appointment.routes[0]) {
+      appointment.routes[0] = {
+        ...appointment.routes[0],
+        selectedOption: true
+      };
+    }
+
+    return HttpResponse.json(appointment);
+  }),
   http.delete("http://127.0.0.1:4000/api/appointments/:id", ({ params }) => {
     const index = appointments.findIndex((item) => item.id === params.id);
     if (index >= 0) {

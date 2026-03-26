@@ -6,6 +6,7 @@ import {
   createAppointmentSchema,
   createRouteSchema,
   listAppointmentsQuerySchema,
+  updateRouteSchema,
   updateAppointmentSchema
 } from "./appointments.schema.js";
 
@@ -263,6 +264,113 @@ export class AppointmentsService {
         }
       });
     });
+
+    return prisma.appointment.findUniqueOrThrow({
+      where: { id },
+      include: appointmentInclude
+    });
+  }
+
+  async updateRoute(id: string, routeId: string, input: unknown) {
+    const parsed = updateRouteSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new HttpError(400, "Validation failed", parsed.error.flatten());
+    }
+
+    logger.debug({ id, routeId, input: parsed.data }, "appointments-service:updateRoute");
+
+    const route = await prisma.savedRoute.findFirst({
+      where: {
+        id: routeId,
+        appointmentId: id
+      },
+      select: {
+        id: true,
+        appointmentId: true
+      }
+    });
+
+    if (!route) {
+      throw new HttpError(404, "Route not found");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (parsed.data.selectedOption) {
+        await tx.savedRoute.updateMany({
+          where: {
+            appointmentId: id,
+            selectedOption: true
+          },
+          data: {
+            selectedOption: false
+          }
+        });
+      }
+
+      await tx.savedRoute.update({
+        where: { id: routeId },
+        data: {
+          summary: parsed.data.summary,
+          distanceMeters: parsed.data.distanceMeters,
+          durationSeconds: parsed.data.durationSeconds,
+          selectedOption: parsed.data.selectedOption,
+          waypoints: parsed.data.waypoints
+            ? {
+                deleteMany: {},
+                create: parsed.data.waypoints.map((waypoint, index) => ({
+                  sequence: index + 1,
+                  name: waypoint.name,
+                  lat: waypoint.lat,
+                  lng: waypoint.lng
+                }))
+              }
+            : undefined
+        }
+      });
+    });
+
+    return prisma.appointment.findUniqueOrThrow({
+      where: { id },
+      include: appointmentInclude
+    });
+  }
+
+  async removeRoute(id: string, routeId: string) {
+    logger.debug({ id, routeId }, "appointments-service:removeRoute");
+
+    const route = await prisma.savedRoute.findFirst({
+      where: {
+        id: routeId,
+        appointmentId: id
+      },
+      select: {
+        id: true,
+        selectedOption: true
+      }
+    });
+
+    if (!route) {
+      throw new HttpError(404, "Route not found");
+    }
+
+    await prisma.savedRoute.delete({
+      where: { id: routeId }
+    });
+
+    if (route.selectedOption) {
+      const fallbackRoute = await prisma.savedRoute.findFirst({
+        where: { appointmentId: id },
+        orderBy: { createdAt: "asc" },
+        select: { id: true }
+      });
+
+      if (fallbackRoute) {
+        await prisma.savedRoute.update({
+          where: { id: fallbackRoute.id },
+          data: { selectedOption: true }
+        });
+      }
+    }
 
     return prisma.appointment.findUniqueOrThrow({
       where: { id },

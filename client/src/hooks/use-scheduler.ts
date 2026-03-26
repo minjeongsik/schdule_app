@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAppointmentRoute,
   createAppointment,
+  deleteAppointmentRoute,
   deleteAppointment,
   fetchAppointments,
   selectAppointmentRoute,
+  updateAppointmentRoute,
   updateAppointment
 } from "../api/appointments";
 import { createPlace, deletePlace, fetchPlaces, updatePlace } from "../api/places";
@@ -79,6 +81,29 @@ export function useCreateAppointmentRoute(userId: string) {
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: RouteCandidatePayload }) => createAppointmentRoute(id, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["appointments", userId] });
+    }
+  });
+}
+
+export function useUpdateAppointmentRoute(userId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, routeId, payload }: { id: string; routeId: string; payload: RouteCandidatePayload }) =>
+      updateAppointmentRoute(id, routeId, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["appointments", userId] });
+    }
+  });
+}
+
+export function useDeleteAppointmentRoute(userId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, routeId }: { id: string; routeId: string }) => deleteAppointmentRoute(id, routeId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["appointments", userId] });
     }

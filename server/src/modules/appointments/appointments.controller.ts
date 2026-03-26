@@ -46,8 +46,25 @@ export class AppointmentsController {
     res.status(201).json(appointment);
   };
 
+  updateRoute = async (req: Request, res: Response) => {
+    const appointment = await this.appointmentsService.updateRoute(
+      getRouteParam(req.params.id, "id"),
+      getRouteParam(req.params.routeId, "routeId"),
+      req.body
+    );
+    res.json(appointment);
+  };
+
   remove = async (req: Request, res: Response) => {
     await this.appointmentsService.remove(getRouteParam(req.params.id, "id"));
     res.status(204).send();
+  };
+
+  removeRoute = async (req: Request, res: Response) => {
+    const appointment = await this.appointmentsService.removeRoute(
+      getRouteParam(req.params.id, "id"),
+      getRouteParam(req.params.routeId, "routeId")
+    );
+    res.json(appointment);
   };
 }
