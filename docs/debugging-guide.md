@@ -3,33 +3,40 @@
 ## 빠른 진입점
 
 - 프론트 실행: `npm.cmd run dev:client`
-- 백엔드 실행: `npm.cmd run dev:server`
+- 서버 실행: `npm.cmd run dev:server`
 - 전체 실행: `npm.cmd run dev`
 
-## 백엔드 디버깅 포인트
+## 백엔드 확인 포인트
 
-- [app.ts](/E:/min/job/ai/cli/server/src/app.ts): 라우트와 미들웨어 결합 지점
-- [request-context.ts](/E:/min/job/ai/cli/server/src/middlewares/request-context.ts): 요청 시작/종료 로그와 `requestId`
-- [todo-controller.ts](/E:/min/job/ai/cli/server/src/controllers/todo-controller.ts): HTTP 진입점
-- [todo-service.ts](/E:/min/job/ai/cli/server/src/services/todo-service.ts): 검증과 도메인 로직
-- [todo-repository.ts](/E:/min/job/ai/cli/server/src/repositories/todo-repository.ts): SQLite CRUD 쿼리
-- [error-handler.ts](/E:/min/job/ai/cli/server/src/middlewares/error-handler.ts): 공통 오류 응답
+- [app.ts](/D:/AI사업/web/cli/server/src/app.ts): 라우터 조립
+- [request-context.ts](/D:/AI사업/web/cli/server/src/middlewares/request-context.ts): `requestId` 부여
+- [error-handler.ts](/D:/AI사업/web/cli/server/src/middlewares/error-handler.ts): 공통 오류 응답
+- [appointments.service.ts](/D:/AI사업/web/cli/server/src/modules/appointments/appointments.service.ts): 일정/route 핵심 로직
+- [places.service.ts](/D:/AI사업/web/cli/server/src/modules/places/places.service.ts): place user scope 검증
 
-## 프론트 디버깅 포인트
+## 프론트 확인 포인트
 
-- [client.ts](/E:/min/job/ai/cli/client/src/api/client.ts): 요청/응답 로그
-- [TodoDashboardPage.tsx](/E:/min/job/ai/cli/client/src/pages/TodoDashboardPage.tsx): CRUD 동작 흐름
-- [TodoForm.tsx](/E:/min/job/ai/cli/client/src/components/TodoForm.tsx): 폼 제출과 프론트 검증
-- [DebugPanel.tsx](/E:/min/job/ai/cli/client/src/components/DebugPanel.tsx): 현재 상태 스냅샷
+- [client.ts](/D:/AI사업/web/cli/client/src/api/client.ts): API 요청/응답 및 에러 변환
+- [SchedulerDashboardPage.tsx](/D:/AI사업/web/cli/client/src/pages/SchedulerDashboardPage.tsx): 메인 화면 로직
+- [use-scheduler.ts](/D:/AI사업/web/cli/client/src/hooks/use-scheduler.ts): React Query mutation/query 연결
 
 ## 로그 확인 방법
 
-- 브라우저 개발자 도구 콘솔에서 `api:*`, `ui:*` 로그 확인
-- 서버 콘솔에서 `request:start`, `request:end`, `todo-service:*` 로그 확인
+- 브라우저 콘솔에서 `api:request`, `api:response`, `api:error` 확인
+- 서버 콘솔에서 `appointments-service:*`, `places-service:*` 로그 확인
+- 오류 응답의 `requestId`로 서버 로그를 추적
 
-## 대표 재현 시나리오
+## 자주 보는 문제
 
-1. 제목 없이 생성 시도
-2. 네트워크 탭에서 `/api/todos` 요청과 400 응답 확인
-3. 서버 콘솔에서 동일한 `requestId` 추적
-4. `error-handler` 응답 payload 확인
+1. place 조회가 비어 있음
+   `GET /api/places?userId=demo-user` 응답 확인
+2. appointment 생성 실패
+   origin/destination place가 같은 user 소유인지 확인
+3. route 생성 실패
+   appointment에 origin place가 있는지 확인
+4. route 선택이 반영되지 않음
+   `/api/appointments/:id/routes/:routeId/select` 응답과 invalidate 여부 확인
+
+## 레거시 주의
+
+`todo` 서비스와 관련 문서는 현재 앱 런타임에 연결되어 있지 않습니다. scheduler 문제를 볼 때는 `modules/appointments`, `modules/places`, `client/src/pages/SchedulerDashboardPage.tsx`를 우선 확인하면 됩니다.

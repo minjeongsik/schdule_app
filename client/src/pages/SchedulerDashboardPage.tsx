@@ -821,7 +821,7 @@ export function SchedulerDashboardPage() {
                         </div>
                       </div>
                       <p className="meta-line">
-                        {Math.round(route.distanceMeters / 100) / 10} km · {formatDuration(route.durationSeconds)}
+                        {Math.round(route.distanceMeters / 100) / 10} km / {formatDuration(route.durationSeconds)}
                       </p>
                       <p className="meta-line">{route.waypoints.length} waypoint(s)</p>
                     </article>
@@ -866,7 +866,7 @@ export function SchedulerDashboardPage() {
                 <p className="meta-line">{appointment.transportMode}</p>
                 <p className="meta-line">
                   {appointment.routes.length} routes
-                  {appointment.routes.some((route) => route.selectedOption) ? " · selected candidate ready" : ""}
+                  {appointment.routes.some((route) => route.selectedOption) ? " / selected candidate ready" : ""}
                 </p>
               </button>
             ))}
@@ -997,7 +997,7 @@ export function SchedulerDashboardPage() {
               <p className="panel-kicker">Selected Route</p>
               <h2>{selectedRoute.summary ?? "Selected route candidate"}</h2>
               <p className="panel-description">
-                {Math.round(selectedRoute.distanceMeters / 100) / 10} km · {formatDuration(selectedRoute.durationSeconds)}
+                {Math.round(selectedRoute.distanceMeters / 100) / 10} km / {formatDuration(selectedRoute.durationSeconds)}
               </p>
             </div>
           </div>
@@ -1025,3 +1025,4 @@ export function SchedulerDashboardPage() {
     </main>
   );
 }
+

@@ -1,64 +1,61 @@
 # Map Scheduler User Guide
 
-## 한눈에 보기
+## 화면 구성
 
-이 프로젝트는 약속 일정과 장소를 함께 관리하는 간단한 웹 도구다.
+- 왼쪽: appointment 생성/수정, route candidate 관리
+- 가운데: appointment 목록
+- 오른쪽: place 관리
+- 하단: 선택된 route의 waypoint 확인
 
-- 왼쪽: 약속 생성 및 수정
-- 가운데: 등록된 약속 목록
-- 오른쪽: 장소 등록 및 장소 목록
+## 기본 사용 순서
 
-## 기본 사용 흐름
+1. place를 먼저 등록합니다.
+2. origin place와 destination place를 선택해 appointment를 생성합니다.
+3. 생성된 appointment를 선택합니다.
+4. route candidate를 추가합니다.
+5. 필요하면 route를 수정/삭제하거나 다른 route를 selected 상태로 바꿉니다.
 
-1. 서버와 클라이언트를 실행한다.
-2. 처음에는 오른쪽 `장소 관리`에서 집, 회사, 미팅 장소를 등록한다.
-3. 왼쪽 `새 약속 만들기`에서 제목, 시간, 이동 방식, 도착 장소를 입력한다.
-4. 가운데 목록에서 약속을 클릭하면 수정 모드로 바뀐다.
-5. 수정이 끝나면 `약속 수정하기`, 삭제하려면 `삭제`를 누른다.
+## Route 입력 방식
 
-## DB를 쉽게 관리하는 방법
+route candidate 생성/수정 시 waypoint는 한 줄에 하나씩 입력합니다.
 
-개발용 DB 관리는 Prisma Studio를 쓰는 것이 가장 쉽다.
+- `name|lat|lng`
+- `lat|lng`
+
+예시:
+
+```text
+Transfer stop|37.5142|127.0418
+37.5290|127.0120
+```
+
+## Prisma Studio 사용
 
 ```powershell
 npm.cmd --workspace server run db:studio
 ```
 
-열리면 아래 테이블을 화면에서 바로 확인할 수 있다.
+확인할 테이블:
 
 - `User`
 - `Place`
 - `Appointment`
 - `SavedRoute`
-- `Tag`
-- `AppointmentTag`
+- `Waypoint`
 
-초기 MVP에서는 주로 `Place`, `Appointment`만 보면 된다.
+## 샘플 데이터
 
-## seed 데이터
+- user: `demo-user`
+- places: `home-place`, `office-place`
+- appointment: `demo-appointment`
 
-아래 기본 데이터가 준비되어 있다.
+## 현재 MVP 범위
 
-- 사용자: `demo-user`
-- 장소: `home-place`, `office-place`
-- 샘플 약속: `demo-appointment`
+- place user scope 적용
+- appointment별 다수 route candidate 지원
+- route별 waypoint 저장 지원
+- 프론트 에러를 field/form/page로 구분
 
-## 구조 설명
+## 레거시 참고
 
-- `server/prisma/schema.prisma`
-  Prisma DB 구조 정의
-- `server/src/modules/appointments`
-  약속 CRUD API
-- `server/src/modules/places`
-  장소 조회/생성 API
-- `client/src/pages/SchedulerDashboardPage.tsx`
-  실제 사용자 화면
-- `client/src/hooks/use-scheduler.ts`
-  API 호출과 캐시 갱신 처리
-
-## 추천 작업 순서
-
-1. 장소를 먼저 등록한다.
-2. 약속을 등록한다.
-3. 목록에서 수정과 삭제를 반복한다.
-4. 필요할 때 Prisma Studio로 DB 상태를 직접 확인한다.
+`todo` 파일은 참고용 레거시입니다. 현재 사용자 흐름은 scheduler 화면만 기준으로 보면 됩니다.
